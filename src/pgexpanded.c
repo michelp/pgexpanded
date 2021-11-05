@@ -1,14 +1,14 @@
 #include "pgexpanded.h"
 PG_MODULE_MAGIC;
 
-/* Compute flattened size of storage needed to flatten an expanded
-   matrix */
+/* Compute flattened size of storage needed for a matrix */
 static Size
 matrix_get_flat_size(ExpandedObjectHeader *eohptr) {
     pgexpanded_Matrix *A = (pgexpanded_Matrix*) eohptr;
     Size nbytes;
     uint64_t nvals;
 
+    /* This is a sanity check that the object is initialized */
     Assert(A->em_magic == matrix_MAGIC);
 
     /* Use cached value if already computed */
@@ -33,7 +33,8 @@ matrix_get_flat_size(ExpandedObjectHeader *eohptr) {
 static void
 matrix_flatten_into(ExpandedObjectHeader *eohptr,
                     void *result, Size allocated_size)  {
-    uint64_t nrows, ncols, nvals, *rows, *cols, *vals;
+    uint64_t *rows, *cols, *vals;
+    size_t array_size;
 
     /* Cast EOH pointer to expanded object, and result pointer to flat
        object */
@@ -49,31 +50,25 @@ matrix_flatten_into(ExpandedObjectHeader *eohptr,
 
     /* Compute the pointers to the 3 arrays in the data buffer */
     rows = PGEXPANDED_MATRIX_DATA(flat);
-    cols = rows + nvals + 1;
-    vals = cols + nvals;
+    cols = rows + A->nvals;
+    vals = cols + A->nvals;
 
     /* Write the struct header info */
-    flat->nrows = nrows;
-    flat->ncols = ncols;
-    flat->nvals = nvals;
+    flat->nrows = A->nrows;
+    flat->ncols = A->ncols;
+    flat->nvals = A->nvals;
 
     /* If there are any values, write the 3 arrays. */
-    if (nvals > 0) {
+    if (A->nvals > 0) {
+        array_size = A->nvals * sizeof(uint64_t);
         /* Write the row data */
-        memcpy(rows,
-               A->rows,
-               (nrows+1)*sizeof(uint64_t));
+        memcpy(rows, A->rows, array_size);
 
         /* Write the col data */
-        memcpy(cols,
-               A->cols,
-               nvals*sizeof(uint64_t));
+        memcpy(cols, A->cols, array_size);
 
         /* Write the value data */
-        memcpy(vals,
-               A->vals,
-               nvals*sizeof(uint64_t));
-        
+        memcpy(vals, A->vals, array_size);
     }
     /* Set the final size in the header */
     SET_VARSIZE(flat, allocated_size);
@@ -88,8 +83,10 @@ expand_flat_matrix(pgexpanded_FlatMatrix *flat,
   MemoryContext objcxt, oldcxt;
   MemoryContextCallback *ctxcb;
 
-  uint64_t nrows, ncols, nvals;
+  uint64_t nvals;
   uint64_t *rows, *cols, *vals;
+
+  size_t array_size;
 
   /* Create a new context that will hold the expanded object. */
   objcxt = AllocSetContextCreate(parentcontext,
@@ -111,29 +108,30 @@ expand_flat_matrix(pgexpanded_FlatMatrix *flat,
   oldcxt = MemoryContextSwitchTo(objcxt);
 
   /* Get dimensional information from flat object */
-  nrows = flat->nrows;
-  ncols = flat->ncols;
-  nvals = flat->nvals;
+  A->nrows = flat->nrows;
+  A->ncols = flat->ncols;
+  A->nvals = nvals = flat->nvals;
 
   /* Using calloc here to simulate data that would be allocated by a
      library that did the actual matrix multiplication, like
      SuiteSparse:GraphBLAS.  These arrays are then freed in the memory
      context callback function below. */
-  rows = calloc(nvals, sizeof(uint64_t));
-  cols = calloc(nvals, sizeof(uint64_t));
-  vals = calloc(nvals, sizeof(uint64_t));
+  A->rows = calloc(nvals, sizeof(uint64_t));
+  A->cols = calloc(nvals, sizeof(uint64_t));
+  A->vals = calloc(nvals, sizeof(uint64_t));
+
+  /* Copy flat data into newly allocated buffers */
   
-  memcpy(rows,
-         PGEXPANDED_MATRIX_DATA(flat),
-         (nrows+1)*sizeof(uint64_t));
+  rows = PGEXPANDED_MATRIX_DATA(flat);
+  cols = rows + nvals;
+  vals = cols + nvals;
+
+  array_size = nvals * sizeof(uint64_t);
+  memcpy(A->rows, rows, array_size);
   
-  memcpy(cols,
-         PGEXPANDED_MATRIX_DATA(flat) + nrows+1,
-         nvals*sizeof(uint64_t));
+  memcpy(A->cols, cols, array_size);
   
-  memcpy(vals,
-         PGEXPANDED_MATRIX_DATA(flat) + nrows+1 + nvals,
-         nvals*sizeof(uint64_t));
+  memcpy(A->vals, vals, array_size);
 
   /* Setting flat size to zero tells us the object has been written. */
   A->flat_size = 0;
@@ -347,29 +345,23 @@ matrix_out(PG_FUNCTION_ARGS)
 
 Datum
 matrix_nrows(PG_FUNCTION_ARGS) {
-  pgexpanded_Matrix *mat;
-  uint64_t count;
-  mat = PGEXPANDED_GETARG_MATRIX(0);
-  count = 0;
-  return Int64GetDatum(count);
+  pgexpanded_Matrix *A;
+  A = PGEXPANDED_GETARG_MATRIX(0);
+  return Int64GetDatum(A->nrows);
 }
 
 Datum
 matrix_ncols(PG_FUNCTION_ARGS) {
-  pgexpanded_Matrix *mat;
-  uint64_t count;
-  mat = PGEXPANDED_GETARG_MATRIX(0);
-  count = 0;
-  return Int64GetDatum(count);
+  pgexpanded_Matrix *A;
+  A = PGEXPANDED_GETARG_MATRIX(0);
+  return Int64GetDatum(A->ncols);
 }
 
 Datum
 matrix_nvals(PG_FUNCTION_ARGS) {
-  pgexpanded_Matrix *mat;
-  uint64_t count;
-  mat = PGEXPANDED_GETARG_MATRIX(0);
-  count = 0;
-  return Int64GetDatum(count);
+  pgexpanded_Matrix *A;
+  A = PGEXPANDED_GETARG_MATRIX(0);
+  return Int64GetDatum(A->nvals);
 }
 
 
