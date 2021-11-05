@@ -1,7 +1,7 @@
 # pgexpanded
 
 This is an example postgres extension that shows how to implement an
-"expanded" data type as described [in this
+"expanded" data type in C as described [in this
 documentation](https://www.postgresql.org/docs/current/xtypes.html):
 
 *"Another feature that's enabled by TOAST support is the possibility of
