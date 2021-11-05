@@ -4,7 +4,7 @@ This is an example postgres extension that shows how to implement an
 "expanded" data type as described [in this
 documentation](https://www.postgresql.org/docs/current/xtypes.html):
 
-"Another feature that's enabled by TOAST support is the possibility of
+*"Another feature that's enabled by TOAST support is the possibility of
 having an expanded in-memory data representation that is more
 convenient to work with than the format that is stored on disk. The
 regular or “flat” varlena storage format is ultimately just a blob of
@@ -13,15 +13,14 @@ to other locations in memory. For complex data types, the flat format
 may be quite expensive to work with, so PostgreSQL provides a way to
 “expand” the flat format into a representation that is more suited to
 computation, and then pass that format in-memory between functions of
-the data type."
+the data type."*
 
 This repository provides a simple, compilable and runnable example
 expanded data type that can be used as a basis for other extensions.
 By way of trivial example, it shows how to expand and flatten a sparse
-matrix in Compressed Sparse Row format and provides an example
-function that does Matrix Multiplication of two expanded matrices.
+matrix stored in a simple coordinate format.
 
-Do not use this matrix multiplication for real!  It is intentionally
+This isn't meant to be a useful matrix type!  It is intentionally
 simple and inefficient and for illustration purposes only.  If you
 want efficient sparse matrix multiplication I suggest you check out
 [SuiteSparse:GraphBLAS](https://github.com/DrTimothyAldenDavis/GraphBLAS).
