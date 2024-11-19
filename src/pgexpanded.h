@@ -12,23 +12,23 @@
 
 /* Flattened representation of exobj, used to store to disk.
 
-The first 32 bits must the length of the data.  Actual flattened data
-is appended after this struct and cannot exceed 1GB.
+   The first 32 bits must the length of the data.  Actual flattened data
+   is appended after this struct and cannot exceed 1GB.
 */
 typedef struct pgexpanded_FlatExobj {
-    int32 vl_len_;
+	int32 vl_len_;
 } pgexpanded_FlatExobj;
 
 /* Expanded representation of exobj.
 
-When loaded from storage, the flattened representation is used to
-build the exobj.  In this case, it's just a pointer to an integer.
+   When loaded from storage, the flattened representation is used to
+   build the exobj.  In this case, it's just a pointer to an integer.
 */
 typedef struct pgexpanded_Exobj  {
-    ExpandedObjectHeader hdr;
-    int em_magic;
-    Size flat_size;
-    int64_t *value;
+	ExpandedObjectHeader hdr;
+	int em_magic;
+	Size flat_size;
+	int64_t *value;
 } pgexpanded_Exobj;
 
 /* Callback function for freeing exobj arrays. */
@@ -41,12 +41,12 @@ exobj_get_flat_size(ExpandedObjectHeader *eohptr);
 
 static void
 exobj_flatten_into(ExpandedObjectHeader *eohptr,
-                    void *result, Size allocated_size);
+				   void *result, Size allocated_size);
 
 static const ExpandedObjectMethods exobj_methods = {
-     exobj_get_flat_size,
-     exobj_flatten_into
-    };
+	exobj_get_flat_size,
+	exobj_flatten_into
+};
 
 /* Create a new exobj datum. */
 pgexpanded_Exobj *
@@ -81,3 +81,7 @@ void
 _PG_init(void);
 
 #endif /* PGEXPANDED_H */
+/* Local Variables: */
+/* mode: c */
+/* c-file-style: "postgresql" */
+/* End: */
