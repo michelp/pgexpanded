@@ -17,10 +17,5 @@ the data type."*
 
 This repository provides a simple, compilable and runnable example
 expanded data type that can be used as a basis for other extensions.
-By way of trivial example, it shows how to expand and flatten a sparse
-matrix stored in a simple coordinate format.
-
-This isn't meant to be a useful matrix type!  It is intentionally
-simple and inefficient and for illustration purposes only.  If you
-want efficient sparse matrix multiplication I suggest you check out
-[SuiteSparse:GraphBLAS](https://github.com/DrTimothyAldenDavis/GraphBLAS).
+By way of trivial example, it shows how to expand a data type that
+keeps track of the number of expansions it's gone through.
