@@ -2,122 +2,80 @@
 #define PGEXPANDED_H
 
 #include "postgres.h"
-#include "utils/builtins.h"
-#include "libpq/pqformat.h"
 #include "funcapi.h"
-#include "access/htup_details.h"
-#include "utils/array.h"
-#include "utils/arrayaccess.h"
-#include "catalog/pg_type_d.h"
-#include "catalog/pg_type.h"
-#include "utils/lsyscache.h"
-#include "nodes/pg_list.h"
-#include "utils/varlena.h"
-
-/* dumb debug helper */
-#define elogn(s) elog(NOTICE, "%s", (s))
-#define elogn1(s, v) elog(NOTICE, "%s: %lu", (s), (v))
+#include "utils/expandeddatum.h"
 
 /* ID for debugging crosschecks */
-#define matrix_MAGIC 689276813
+#define exobj_MAGIC 689276813
 
-/* Flattened representation of matrix, used to store to disk.
+#define LOGF() elog(DEBUG1, __func__)
 
-The first 32 bits must the length of the data.  Actual array data is
-appended after this struct and cannot exceed 1GB.
+/* Flattened representation of exobj, used to store to disk.
+
+The first 32 bits must the length of the data.  Actual flattened data
+is appended after this struct and cannot exceed 1GB.
 */
-typedef struct pgexpanded_FlatMatrix {
+typedef struct pgexpanded_FlatExobj {
     int32 vl_len_;
-    
-    uint64_t nrows;
-    uint64_t ncols;
-    uint64_t nvals;
-} pgexpanded_FlatMatrix;
+} pgexpanded_FlatExobj;
 
-/* Expanded representation of matrix.
+/* Expanded representation of exobj.
 
 When loaded from storage, the flattened representation is used to
-build the matrix.
-
-This is a simple coordinate storage format of 3 equal sized unsigned
-integer arrays.
+build the exobj.  In this case, it's just a pointer to an integer.
 */
-typedef struct pgexpanded_Matrix  {
+typedef struct pgexpanded_Exobj  {
     ExpandedObjectHeader hdr;
     int em_magic;
-    
-    uint64_t nrows;
-    uint64_t ncols;
-    uint64_t nvals;
-    
-    uint64_t *rows;
-    uint64_t *cols;
-    uint64_t *vals;
-    
-    Size     flat_size;
-} pgexpanded_Matrix;
+    Size flat_size;
+    int64_t *value;
+} pgexpanded_Exobj;
 
-/* Callback function for freeing matrix arrays. */
+/* Callback function for freeing exobj arrays. */
 static void
-context_callback_matrix_free(void*);
+context_callback_exobj_free(void*);
 
-/* Expanded Object Header "methods" for flattening matrices for storage */
+/* Expanded Object Header "methods" for flattening for storage */
 static Size
-matrix_get_flat_size(ExpandedObjectHeader *eohptr);
+exobj_get_flat_size(ExpandedObjectHeader *eohptr);
 
 static void
-matrix_flatten_into(ExpandedObjectHeader *eohptr,
+exobj_flatten_into(ExpandedObjectHeader *eohptr,
                     void *result, Size allocated_size);
 
-static const ExpandedObjectMethods matrix_methods = {
-     matrix_get_flat_size,
-     matrix_flatten_into
+static const ExpandedObjectMethods exobj_methods = {
+     exobj_get_flat_size,
+     exobj_flatten_into
     };
 
-/* Utility function that expands a flattened matrix datum. */
-Datum
-expand_flat_matrix(pgexpanded_FlatMatrix *flat,
-                   MemoryContext parentcontext);
+/* Create a new exobj datum. */
+pgexpanded_Exobj *
+new_expanded_exobj(int64_t value,  MemoryContext parentcontext);
 
-pgexpanded_Matrix *
-construct_empty_expanded_matrix(uint64_t nrows,
-                                uint64_t ncols,
-                                MemoryContext parentcontext);
+/* Helper function that either detoasts or expands. */
+pgexpanded_Exobj *DatumGetExobj(Datum d);
 
-/* Helper function that either detoasts or expands matrices. */
-pgexpanded_Matrix *
-DatumGetMatrix(Datum d);
+/* Helper macro to detoast and expand exobjs arguments */
+#define PGEXPANDED_GETARG_EXOBJ(n)  DatumGetExobj(PG_GETARG_DATUM(n))
 
-/* Helper function to create an empty flattened matrix. */
-pgexpanded_FlatMatrix *
-construct_empty_flat_matrix(uint64_t nrows, uint64_t ncols);
+/* Helper macro to return Expanded Object Header Pointer from exobj. */
+#define PGEXPANDED_RETURN_EXOBJ(A) return EOHPGetRWDatum(&(A)->hdr)
 
-/* Helper macro to detoast and expand matrixs arguments */
-#define PGEXPANDED_GETARG_MATRIX(n)  DatumGetMatrix(PG_GETARG_DATUM(n))
+/* Helper macro to compute flat exobj header size */
+#define PGEXPANDED_EXOBJ_OVERHEAD() MAXALIGN(sizeof(pgexpanded_FlatExobj))
 
-/* Helper macro to return Expanded Object Header Pointer from matrix. */
-#define PGEXPANDED_RETURN_MATRIX(A) return EOHPGetRWDatum(&(A)->hdr)
+/* Helper macro to get pointer to beginning of exobj data. */
+#define PGEXPANDED_EXOBJ_DATA(a) ((int64_t *)(((char *) (a)) + PGEXPANDED_EXOBJ_OVERHEAD()))
 
-/* Helper macro to compute flat matrix header size */
-#define PGEXPANDED_MATRIX_OVERHEAD() MAXALIGN(sizeof(pgexpanded_FlatMatrix))
-
-/* Helper macro to get pointer to beginning of matrix data. */
-#define PGEXPANDED_MATRIX_DATA(a) ((uint64_t *)(((char *) (a)) + PGEXPANDED_MATRIX_OVERHEAD()))
-
-/* Help macro to cast generic Datum header pointer to expanded Matrix */
-#define MatrixGetEOHP(d) (pgexpanded_Matrix *) DatumGetEOHP(d);
+/* Help macro to cast generic Datum header pointer to expanded Exobj */
+#define ExobjGetEOHP(d) (pgexpanded_Exobj *) DatumGetEOHP(d);
 
 /* Public API functions */
 
-PG_FUNCTION_INFO_V1(matrix);
-PG_FUNCTION_INFO_V1(matrix_in);
-PG_FUNCTION_INFO_V1(matrix_out);
-
-PG_FUNCTION_INFO_V1(matrix_ncols);
-PG_FUNCTION_INFO_V1(matrix_nrows);
-PG_FUNCTION_INFO_V1(matrix_nvals);
-
-PG_FUNCTION_INFO_V1(mxm);
+PG_FUNCTION_INFO_V1(exobj);
+PG_FUNCTION_INFO_V1(exobj_in);
+PG_FUNCTION_INFO_V1(exobj_out);
+PG_FUNCTION_INFO_V1(exobj_info);
 
 void
 _PG_init(void);

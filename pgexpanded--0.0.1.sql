@@ -1,59 +1,48 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pgexpanded" to load this file. \quit
 
-CREATE TYPE matrix;
+CREATE TYPE exobj;
 
-CREATE FUNCTION matrix_in(cstring)
-RETURNS matrix
-AS '$libdir/pgexpanded', 'matrix_in'
+CREATE FUNCTION exobj_in(cstring)
+RETURNS exobj
+AS '$libdir/pgexpanded', 'exobj_in'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION matrix_out(matrix)
+CREATE FUNCTION exobj_out(exobj)
 RETURNS cstring
-AS '$libdir/pgexpanded', 'matrix_out'
+AS '$libdir/pgexpanded', 'exobj_out'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE TYPE matrix (
-    input = matrix_in,
-    output = matrix_out,
+CREATE TYPE exobj (
+    input = exobj_in,
+    output = exobj_out,
     alignment = int4,
     storage = 'extended',
     internallength = -1
 );
 
-CREATE FUNCTION nrows(matrix)
+CREATE FUNCTION info(exobj)
 RETURNS bigint
-AS '$libdir/pgexpanded', 'matrix_nrows'
+AS '$libdir/pgexpanded', 'exobj_info'
 LANGUAGE C STABLE;
 
-CREATE FUNCTION ncols(matrix)
-RETURNS bigint
-AS '$libdir/pgexpanded', 'matrix_ncols'
-LANGUAGE C STABLE;
+create or replace function test_expand(obj exobj) returns exobj language plpgsql as
+    $$
+    declare
+        i bigint = info(obj);
+    begin
+        raise notice 'expand count %', i;
+        return obj;
+    end;
+    $$;
 
-CREATE FUNCTION nvals(matrix)
-RETURNS bigint
-AS '$libdir/pgexpanded', 'matrix_nvals'
-LANGUAGE C STABLE;
-
--- CREATE FUNCTION matrix(bigint[], bigint[], bigint[],
---     bigint default null, bigint default null)
--- RETURNS matrix
--- AS '$libdir/pgexpanded', 'matrix_int64'
--- LANGUAGE C STABLE;
-
-CREATE FUNCTION mxm(
-    A matrix,
-    B matrix
-    )
-RETURNS matrix
-AS '$libdir/pgexpanded', 'mxm'
-LANGUAGE C STABLE;
-
--- matrix operators
-
-CREATE OPERATOR * (
-    leftarg = matrix,
-    rightarg = matrix,
-    procedure = mxm
-);
+create or replace function test_expand_expand(obj exobj) returns exobj language plpgsql as
+    $$
+    declare
+        i bigint = info(obj);
+    begin
+        raise notice 'expand expand count %', i;
+        obj = test_expand(obj);
+        return test_expand(obj);
+    end;
+    $$;
